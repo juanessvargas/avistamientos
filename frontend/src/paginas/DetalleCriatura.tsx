@@ -1,19 +1,32 @@
-/**
- * paginas/DetalleCriatura.tsx
- * -------------------------------
- * Muestra una criatura completa y la lista de sus avistamientos, usando
- * la ruta anidada del backend. También permite eliminar la criatura.
- */
-
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
-import { eliminarCriatura, obtenerCriaturaPorId } from "../api/criaturasApi";
-import { obtenerAvistamientosDeCriatura } from "../api/avistamientosApi";
+import { useNavigate, useParams } from "react-router-dom";
+
+import {
+  eliminarCriatura,
+  obtenerCriaturaPorId,
+} from "../api/criaturasApi";
+
+import {
+  obtenerAvistamientosDeCriatura,
+} from "../api/avistamientosApi";
+
 import { Criatura } from "../tipos";
 
-// El backend anida los avistamientos bajo /criaturas/:id/avistamientos
-// SIN populate (ver criaturas.controller.ts de la Semana 6) — por eso aquí
-// el campo `criatura` es un string, no un objeto.
+import {
+  Chip,
+  DangerButton,
+  EmptyBlock,
+  ErrorBlock,
+  GhostLink,
+  LoadingBlock,
+  PrimaryLink,
+  SectionHeader,
+  ThreatLevel,
+  TraceWildFrame,
+  TraceWildNav,
+  formatCreatureType,
+} from "../TraceWildDesign";
+
 interface AvistamientoSinPopular {
   _id: string;
   testigo: string;
@@ -27,79 +40,285 @@ export function DetalleCriatura() {
   const navigate = useNavigate();
 
   const [criatura, setCriatura] = useState<Criatura | null>(null);
-  const [avistamientos, setAvistamientos] = useState<AvistamientoSinPopular[]>([]);
+  const [avistamientos, setAvistamientos] = useState<
+    AvistamientoSinPopular[]
+  >([]);
+
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
 
-    Promise.all([obtenerCriaturaPorId(id), obtenerAvistamientosDeCriatura(id)])
+    Promise.all([
+      obtenerCriaturaPorId(id),
+      obtenerAvistamientosDeCriatura(id),
+    ])
       .then(([criaturaCargada, avistamientosCargados]) => {
         setCriatura(criaturaCargada);
-        setAvistamientos(avistamientosCargados as unknown as AvistamientoSinPopular[]);
+
+        setAvistamientos(
+          avistamientosCargados as unknown as AvistamientoSinPopular[]
+        );
       })
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : "Error al cargar la criatura."))
+      .catch((err: unknown) =>
+        setError(
+          err instanceof Error
+            ? err.message
+            : "No se pudo cargar la especie."
+        )
+      )
       .finally(() => setCargando(false));
   }, [id]);
 
   async function manejarEliminar() {
     if (!id) return;
-    if (!window.confirm("¿Seguro que quieres eliminar esta criatura?")) return;
+
+    const confirmar = window.confirm(
+      "¿Seguro que quieres eliminar esta especie del atlas?"
+    );
+
+    if (!confirmar) return;
 
     try {
       await eliminarCriatura(id);
       navigate("/");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo eliminar la criatura.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "No se pudo eliminar la especie."
+      );
     }
   }
 
-  if (cargando) return <p>Cargando...</p>;
-  if (error) return <p>Error: {error}</p>;
-  if (!criatura) return <p>No se encontró la criatura.</p>;
-
   return (
-    <div>
-      <p>
-        <Link to="/">Volver a la lista</Link>
-      </p>
+    <TraceWildFrame>
+      <TraceWildNav />
 
-      <h1>{criatura.nombre}</h1>
+      <section className="tw-content">
+        {cargando && (
+          <LoadingBlock>
+            Cargando ficha de especie...
+          </LoadingBlock>
+        )}
 
-      <ul>
-        <li>Tipo: {criatura.tipo}</li>
-        <li>Nivel de peligro: {criatura.nivelPeligro}</li>
-        <li>Estado: {criatura.estado}</li>
-        <li>Habilidades: {criatura.habilidades.join(", ") || "(ninguna registrada)"}</li>
-      </ul>
+        {!cargando && error && (
+          <ErrorBlock>
+            No se pudo cargar la ficha: {error}
+          </ErrorBlock>
+        )}
 
-      <p>
-        <Link to={`/criaturas/${criatura._id}/editar`}>Editar</Link>
-        {" | "}
-        <button type="button" onClick={manejarEliminar}>
-          Eliminar
-        </button>
-      </p>
+        {!cargando && !error && !criatura && (
+          <EmptyBlock>
+            No encontramos esta especie en el atlas.
+          </EmptyBlock>
+        )}
 
-      <h2>Avistamientos registrados</h2>
+        {!cargando && !error && criatura && (
+          <>
+            <div className="tw-filter-row">
+              <div className="tw-chips">
+                <GhostLink to="/">
+                  ← Volver al atlas
+                </GhostLink>
 
-      <p>
-        <Link to={`/avistamientos/nuevo?criaturaId=${criatura._id}`}>Registrar un avistamiento de esta criatura</Link>
-      </p>
+                <Chip active>
+                  {formatCreatureType(criatura.estado)}
+                </Chip>
+              </div>
 
-      {avistamientos.length === 0 ? (
-        <p>Todavía no hay avistamientos registrados para esta criatura.</p>
-      ) : (
-        <ul>
-          {avistamientos.map((avistamiento) => (
-            <li key={avistamiento._id}>
-              {avistamiento.fecha.slice(0, 10)} — {avistamiento.testigo} en {avistamiento.ubicacion}
-              {avistamiento.descripcion ? ` (${avistamiento.descripcion})` : ""}
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
+              <div
+                style={{
+                  display: "flex",
+                  gap: "8px",
+                  flexWrap: "wrap",
+                }}
+              >
+                <PrimaryLink
+                  to={`/criaturas/${criatura._id}/editar`}
+                >
+                  Editar ficha ↗
+                </PrimaryLink>
+
+                <DangerButton onClick={manejarEliminar}>
+                  Eliminar
+                </DangerButton>
+              </div>
+            </div>
+
+            <div className="tw-detail-hero">
+              <div className="tw-specimen-card tw-grid-bg">
+                <div className="tw-eyebrow">
+                  Ficha de especie
+                </div>
+
+                <div
+                  style={{
+                    marginTop: "34px",
+                    maxWidth: "360px",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "13px",
+                      fontWeight: 800,
+                      textTransform: "uppercase",
+                      letterSpacing: ".1em",
+                      color: "rgba(255,255,255,.78)",
+                    }}
+                  >
+                    Clasificación
+                  </div>
+
+                  <div
+                    style={{
+                      fontSize: "38px",
+                      fontWeight: 950,
+                      letterSpacing: "-.05em",
+                      textTransform: "uppercase",
+                      marginTop: "8px",
+                    }}
+                  >
+                    {formatCreatureType(criatura.tipo)}
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    marginTop: "26px",
+                  }}
+                >
+                  <ThreatLevel value={criatura.nivelPeligro} />
+                </div>
+
+                <div className="tw-specimen-mark">
+                  ?
+                </div>
+              </div>
+
+              <div className="tw-detail-card">
+                <div className="tw-eyebrow">
+                  Especie registrada
+                </div>
+
+                <h1 className="tw-detail-title">
+                  {criatura.nombre}
+                </h1>
+
+                <p
+                  className="tw-section-copy"
+                  style={{
+                    marginTop: "18px",
+                    width: "100%",
+                  }}
+                >
+                  Esta ficha reúne la clasificación, el nivel de amenaza,
+                  el estado de investigación y las habilidades conocidas
+                  de esta criatura.
+                </p>
+
+                <div className="tw-detail-grid">
+                  <div className="tw-detail-item">
+                    <strong>Clasificación</strong>
+                    <span>
+                      {formatCreatureType(criatura.tipo)}
+                    </span>
+                  </div>
+
+                  <div className="tw-detail-item">
+                    <strong>Estado</strong>
+                    <span>
+                      {formatCreatureType(criatura.estado)}
+                    </span>
+                  </div>
+
+                  <div className="tw-detail-item">
+                    <strong>Nivel de amenaza</strong>
+                    <span>
+                      {criatura.nivelPeligro}/10
+                    </span>
+                  </div>
+
+                  <div className="tw-detail-item">
+                    <strong>Habilidades conocidas</strong>
+                    <span>
+                      {criatura.habilidades.length > 0
+                        ? criatura.habilidades.join(", ")
+                        : "No hay habilidades registradas"}
+                    </span>
+                  </div>
+                </div>
+
+                <div
+                  className="tw-hero-actions"
+                  style={{ marginTop: "26px" }}
+                >
+                  <PrimaryLink
+                    to={`/avistamientos/nuevo?criaturaId=${criatura._id}`}
+                  >
+                    Registrar avistamiento ↗
+                  </PrimaryLink>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ marginTop: "40px" }}>
+              <SectionHeader
+                eyebrow="Actividad registrada"
+                title="Historial de avistamientos"
+                copy="Todos los reportes confirmados asociados a esta especie aparecen aquí."
+              />
+
+              {avistamientos.length === 0 ? (
+                <EmptyBlock>
+                  Todavía no hay avistamientos registrados para esta especie.
+                </EmptyBlock>
+              ) : (
+                <div className="tw-table-wrap">
+                  <table className="tw-table">
+                    <thead>
+                      <tr>
+                        <th>Fecha</th>
+                        <th>Testigo</th>
+                        <th>Ubicación</th>
+                        <th>Descripción</th>
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      {avistamientos.map((avistamiento) => (
+                        <tr key={avistamiento._id}>
+                          <td data-label="Fecha">
+                            {avistamiento.fecha.slice(0, 10)}
+                          </td>
+
+                          <td data-label="Testigo">
+                            <div className="tw-species-name">
+                              {avistamiento.testigo}
+                            </div>
+                          </td>
+
+                          <td data-label="Ubicación">
+                            <Chip>
+                              {avistamiento.ubicacion}
+                            </Chip>
+                          </td>
+
+                          <td data-label="Descripción">
+                            {avistamiento.descripcion ||
+                              "Sin notas adicionales."}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </section>
+    </TraceWildFrame>
   );
 }

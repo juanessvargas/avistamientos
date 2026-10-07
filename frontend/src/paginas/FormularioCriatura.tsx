@@ -1,13 +1,38 @@
-/**
- * paginas/FormularioCriatura.tsx
- * ----------------------------------
- * Un solo componente para CREAR y EDITAR, según la ruta.
- */
+import {
+  FormEvent,
+  useEffect,
+  useState,
+} from "react";
 
-import { FormEvent, useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
-import { crearCriatura, actualizarCriatura, obtenerCriaturaPorId } from "../api/criaturasApi";
-import { CriaturaFormulario, TIPOS_CRIATURA, ESTADOS_INVESTIGACION } from "../tipos";
+import {
+  useNavigate,
+  useParams,
+} from "react-router-dom";
+
+import {
+  actualizarCriatura,
+  crearCriatura,
+  obtenerCriaturaPorId,
+} from "../api/criaturasApi";
+
+import {
+  CriaturaFormulario,
+  ESTADOS_INVESTIGACION,
+  TIPOS_CRIATURA,
+} from "../tipos";
+
+import {
+  DarkButton,
+  ErrorBlock,
+  Field,
+  GhostLink,
+  LoadingBlock,
+  PrimaryButton,
+  SectionHeader,
+  TraceWildFrame,
+  TraceWildNav,
+  formatCreatureType,
+} from "../TraceWildDesign";
 
 const FORM_VACIO: CriaturaFormulario = {
   nombre: "",
@@ -20,13 +45,25 @@ const FORM_VACIO: CriaturaFormulario = {
 export function FormularioCriatura() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+
   const esEdicion = Boolean(id);
 
-  const [form, setForm] = useState<CriaturaFormulario>(FORM_VACIO);
-  const [habilidadesTexto, setHabilidadesTexto] = useState("");
-  const [cargando, setCargando] = useState(esEdicion);
-  const [guardando, setGuardando] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [form, setForm] =
+    useState<CriaturaFormulario>(FORM_VACIO);
+
+  const [
+    habilidadesTexto,
+    setHabilidadesTexto,
+  ] = useState("");
+
+  const [cargando, setCargando] =
+    useState(esEdicion);
+
+  const [guardando, setGuardando] =
+    useState(false);
+
+  const [error, setError] =
+    useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -40,126 +77,260 @@ export function FormularioCriatura() {
           nivelPeligro: criatura.nivelPeligro,
           estado: criatura.estado,
         });
-        setHabilidadesTexto(criatura.habilidades.join(", "));
+
+        setHabilidadesTexto(
+          criatura.habilidades.join(", ")
+        );
       })
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : "No se pudo cargar la criatura."))
+      .catch((err: unknown) =>
+        setError(
+          err instanceof Error
+            ? err.message
+            : "No se pudo cargar la especie."
+        )
+      )
       .finally(() => setCargando(false));
   }, [id]);
 
-  async function manejarEnvio(evento: FormEvent<HTMLFormElement>) {
+  async function manejarEnvio(
+    evento: FormEvent<HTMLFormElement>
+  ) {
     evento.preventDefault();
+
     setError(null);
 
     if (!form.nombre.trim()) {
-      setError("El nombre es obligatorio.");
+      setError(
+        "El nombre de la especie es obligatorio."
+      );
       return;
     }
 
     const datosAEnviar: CriaturaFormulario = {
       ...form,
+
       habilidades: habilidadesTexto
         .split(",")
-        .map((h) => h.trim())
-        .filter((h) => h.length > 0),
+        .map((habilidad) => habilidad.trim())
+        .filter((habilidad) => habilidad.length > 0),
     };
 
     try {
       setGuardando(true);
+
       if (esEdicion && id) {
         await actualizarCriatura(id, datosAEnviar);
       } else {
         await crearCriatura(datosAEnviar);
       }
+
       navigate("/");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo guardar la criatura.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "No se pudo guardar la especie."
+      );
     } finally {
       setGuardando(false);
     }
   }
 
-  if (cargando) return <p>Cargando datos de la criatura...</p>;
-
   return (
-    <div>
-      <h1>{esEdicion ? "Editar criatura" : "Registrar criatura nueva"}</h1>
+    <TraceWildFrame>
+      <TraceWildNav />
 
-      {error && <p>Error: {error}</p>}
+      <section className="tw-content">
+        <div style={{ marginBottom: "24px" }}>
+          <GhostLink to="/">
+            ← Volver al atlas
+          </GhostLink>
+        </div>
 
-      <form onSubmit={manejarEnvio}>
-        <p>
-          <label htmlFor="nombre">Nombre: </label>
-          <br />
-          <input
-            id="nombre"
-            type="text"
-            value={form.nombre}
-            onChange={(e) => setForm({ ...form, nombre: e.target.value })}
-          />
-        </p>
+        <SectionHeader
+          eyebrow="Registro de especies"
+          title={
+            esEdicion
+              ? "Editar especie"
+              : "Registrar nueva especie"
+          }
+          copy={
+            esEdicion
+              ? "Actualiza la clasificación, habilidades, nivel de amenaza y estado de investigación de esta criatura."
+              : "Crea una nueva ficha para sumar una criatura al Atlas de Criaturas."
+          }
+        />
 
-        <p>
-          <label htmlFor="tipo">Tipo: </label>
-          <br />
-          <select
-            id="tipo"
-            value={form.tipo}
-            onChange={(e) => setForm({ ...form, tipo: e.target.value as CriaturaFormulario["tipo"] })}
-          >
-            {TIPOS_CRIATURA.map((tipo) => (
-              <option key={tipo} value={tipo}>
-                {tipo}
-              </option>
-            ))}
-          </select>
-        </p>
+        {cargando && (
+          <LoadingBlock>
+            Cargando datos de la especie...
+          </LoadingBlock>
+        )}
 
-        <p>
-          <label htmlFor="habilidades">Habilidades (separadas por comas): </label>
-          <br />
-          <input
-            id="habilidades"
-            type="text"
-            value={habilidadesTexto}
-            onChange={(e) => setHabilidadesTexto(e.target.value)}
-          />
-        </p>
+        {!cargando && error && (
+          <ErrorBlock>
+            {error}
+          </ErrorBlock>
+        )}
 
-        <p>
-          <label htmlFor="nivelPeligro">Nivel de peligro (1-10): </label>
-          <br />
-          <input
-            id="nivelPeligro"
-            type="number"
-            min={1}
-            max={10}
-            value={form.nivelPeligro}
-            onChange={(e) => setForm({ ...form, nivelPeligro: Number(e.target.value) })}
-          />
-        </p>
+        {!cargando && (
+          <div className="tw-form-card">
+            <form
+              className="tw-form-grid"
+              onSubmit={manejarEnvio}
+            >
+              <Field
+                label="Nombre de la especie"
+                htmlFor="nombre"
+              >
+                <input
+                  className="tw-input"
+                  id="nombre"
+                  type="text"
+                  value={form.nombre}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      nombre: e.target.value,
+                    })
+                  }
+                  placeholder="Ej. Caminante de ceniza"
+                />
+              </Field>
 
-        <p>
-          <label htmlFor="estado">Estado: </label>
-          <br />
-          <select
-            id="estado"
-            value={form.estado}
-            onChange={(e) => setForm({ ...form, estado: e.target.value as CriaturaFormulario["estado"] })}
-          >
-            {ESTADOS_INVESTIGACION.map((estado) => (
-              <option key={estado} value={estado}>
-                {estado}
-              </option>
-            ))}
-          </select>
-        </p>
+              <Field
+                label="Clasificación"
+                htmlFor="tipo"
+              >
+                <select
+                  className="tw-select"
+                  id="tipo"
+                  value={form.tipo}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      tipo: e.target
+                        .value as CriaturaFormulario["tipo"],
+                    })
+                  }
+                >
+                  {TIPOS_CRIATURA.map((tipo) => (
+                    <option
+                      key={tipo}
+                      value={tipo}
+                    >
+                      {formatCreatureType(tipo)}
+                    </option>
+                  ))}
+                </select>
+              </Field>
 
-        <p>
-          <button type="submit" disabled={guardando}>
-            {guardando ? "Guardando..." : esEdicion ? "Guardar cambios" : "Crear criatura"}
-          </button>
-        </p>
-      </form>
-    </div>
+              <Field
+                label="Habilidades conocidas"
+                htmlFor="habilidades"
+                full
+              >
+                <input
+                  className="tw-input"
+                  id="habilidades"
+                  type="text"
+                  value={habilidadesTexto}
+                  onChange={(e) =>
+                    setHabilidadesTexto(e.target.value)
+                  }
+                  placeholder="Volar, camuflaje, resistencia al calor..."
+                />
+              </Field>
+
+              <Field
+                label={`Nivel de amenaza · ${form.nivelPeligro}/10`}
+                htmlFor="nivelPeligro"
+                full
+              >
+                <input
+                  id="nivelPeligro"
+                  type="range"
+                  min={1}
+                  max={10}
+                  value={form.nivelPeligro}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      nivelPeligro:
+                        Number(e.target.value),
+                    })
+                  }
+                  style={{
+                    width: "100%",
+                    accentColor:
+                      "var(--tw-coral)",
+                  }}
+                />
+              </Field>
+
+              <Field
+                label="Estado de investigación"
+                htmlFor="estado"
+              >
+                <select
+                  className="tw-select"
+                  id="estado"
+                  value={form.estado}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      estado: e.target
+                        .value as CriaturaFormulario["estado"],
+                    })
+                  }
+                >
+                  {ESTADOS_INVESTIGACION.map((estado) => (
+                    <option
+                      key={estado}
+                      value={estado}
+                    >
+                      {formatCreatureType(estado)}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+
+              <div
+                className="tw-field"
+                style={{
+                  justifyContent: "flex-end",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "10px",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <PrimaryButton
+                    type="submit"
+                    disabled={guardando}
+                  >
+                    {guardando
+                      ? "Guardando..."
+                      : esEdicion
+                      ? "Guardar cambios ↗"
+                      : "Registrar especie ↗"}
+                  </PrimaryButton>
+
+                  <DarkButton
+                    type="button"
+                    onClick={() => navigate(-1)}
+                  >
+                    Cancelar
+                  </DarkButton>
+                </div>
+              </div>
+            </form>
+          </div>
+        )}
+      </section>
+    </TraceWildFrame>
   );
 }
